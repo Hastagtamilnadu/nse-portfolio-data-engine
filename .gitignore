@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database files (keeps local portfolio ledger, trade lots, and personal balances 100% private)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Local logs and raw Bhavcopy cache
+*.log
+reports/*.log
+bhavcopy_cache/
+*.parquet
+
+# Environment and secrets
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS and Editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,5 @@
+date,symbol,action,factor,source,details
+2022-07-28,TATASTEEL,SPLIT,10.0,REFERENCE_TABLE,Stock split from Rs 10 to Rs 1
+2021-10-28,IRCTC,SPLIT,5.0,REFERENCE_TABLE,Stock split from Rs 10 to Rs 2
+2021-03-18,DIXON,SPLIT,5.0,REFERENCE_TABLE,Stock split from Rs 10 to Rs 2
+2024-12-06,STAR,DEMERGER,1.0,REFERENCE_TABLE,Demerger of OneSource Specialty Pharma (Parent drop absorbed)
