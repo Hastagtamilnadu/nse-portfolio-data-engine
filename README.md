@@ -3,39 +3,148 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![SQLite WAL](https://img.shields.io/badge/database-SQLite_WAL-orange.svg)](https://www.sqlite.org/)
 [![Data Pipeline](https://img.shields.io/badge/engine-Polars%20%7C%20Pandas-green.svg)](https://pola.rs/)
-[![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-8%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An institutional-grade, automated financial data pipeline, market microstructure simulator, and double-entry portfolio ledger engineered for Indian Equities (NSE). Designed to test systematic factor investing and quantitative portfolio strategies under rigorous real-world friction, statutory tax deductions, and corporate action adjustments.
+An institutional-grade, automated financial data pipeline, market microstructure simulator, and double-entry portfolio ledger engineered for **Indian Equities (NSE)**. Designed to test systematic factor investing and quantitative portfolio strategies under rigorous real-world friction, statutory tax deductions, and corporate action adjustments.
 
 ---
 
-## Architecture & Data Flow
+## 🏗️ Architecture & End-to-End Pipeline Flow
 
 ```mermaid
 flowchart TD
-    A[Official NSE Bhavcopy Feed] -->|Daily Download & Ingestion| B[data_feed.py]
-    B -->|Schema Scrubbing & Liquidity Screen > ₹1 Cr| C[Cleaned Equity Universe]
-    
-    C --> D[canonical_momentum_core.py]
-    D -->|200 SMA Breadth Filter| E{Market Breadth Gate}
-    
-    E -->|Breadth < 45%| F[100% Cash Defense Stance]
-    E -->|Breadth >= 45%| G[Top Factor Candidate Selection]
-    
-    G --> H[execution_router.py]
-    H -->|Circuit Detection Upper/Lower| I[Equal-Weight Order Sizing]
-    I -->|Deduct STT + GST + DP Fees + Slippage| J[ledger.py: SQLite Transaction Ledger]
-    
-    K[corporate_action_watcher.py] -->|Splits / Bonuses / Demergers| J
-    
-    J --> L[governance_monitor.py]
-    L -->|30% Drawdown Circuit Breaker & Health Audit| M[trader_cli.py & Daily CSV Reports]
+    %% 1. Ingestion Layer
+    subgraph INTAKE ["📥 1. Automated Capital Market Data Intake"]
+        NSE["🏛️ Official NSE Bhavcopy Feed<br/>(sec_bhavdata_full_*.csv)"]
+        CAL["📅 Exchange Calendar & Session Validator<br/>(Trading holidays & weekend filters)"]
+        
+        NSE & CAL --> SCRUB["🧹 Data Scrubbing & Schema Normalization<br/>(ISIN resolution, series filtering, type casting)"]
+        SCRUB --> LIQ["💧 Liquidity & Turnover Filter<br/>(Daily Traded Value >= ₹1.00 Crore)"]
+        LIQ --> CACHE[("📦 Partitioned Bhavcopy Cache<br/>(SHA-256 Verified Disk Store)")]
+    end
+
+    %% 2. Factor & Regime Evaluation
+    subgraph REGIME ["🔬 2. Quantitative Factor & Macro Regime Modeling"]
+        CACHE --> FACTOR["📐 Factor Calculation Engine<br/>(Price momentum, volatility, and volume scoring)"]
+        CACHE --> BREADTH["📊 200-Day SMA Breadth Monitor<br/>(% of liquid NSE universe > 200 SMA)"]
+        
+        BREADTH --> GATE{"🚦 Market Breadth Gate<br/>Breadth >= 45%?"}
+        GATE -->|No: Breadth < 45%| DEFENSE["🛡️ 100% Cash Defense Stance<br/>(Zero new buys, systematic exposure wind-down)"]
+        GATE -->|Yes: Breadth >= 45%| UNIVERSE["📋 Ranked Eligible Universe<br/>(Top candidate asset allocation)"]
+    end
+
+    %% 3. Microstructure & Order Routing
+    subgraph MICRO ["⚙️ 3. Market Microstructure & Friction Routing"]
+        UNIVERSE --> SIZING["⚖️ Equal-Weight Capital Allocator<br/>(Active position sizing & cash limits)"]
+        SIZING --> CIRCUIT{"⚡ Exchange Circuit Check"}
+        
+        CIRCUIT -->|Upper Circuit Locked| SKIP["⏭️ Rejection & Reroute<br/>(Skip locked asset, select next rank)"]
+        CIRCUIT -->|Lower Circuit Locked| DEFER["⏳ Order Deferral<br/>(Flag as PENDING_EXIT for next session)"]
+        CIRCUIT -->|Normal Order Book| TAXES["🏷️ Indian Statutory Friction Engine<br/>• STT: 0.10% on Delivery<br/>• Exchange & SEBI Turnover Fees<br/>• GST: 18.0% on Statutory Charges<br/>• DP Charges: ₹15.93 CDSL/NSDL per exit<br/>• Execution Slippage: 20 bps baseline"]
+    end
+
+    %% 4. Corporate Action Adjustment
+    subgraph CA_ENGINE ["🔄 4. Corporate Action Adjustment Engine"]
+        REF_CA["📜 Reference Action Master<br/>(Verified splits, bonuses, demergers)"]
+        HEUR_CA["🔍 Heuristic Anomaly Detector<br/>(Price ratio matching: 2:1, 3:1, 5:1, 10:1)"]
+        
+        REF_CA & HEUR_CA --> ADJUSTER["📐 Position & Cost Basis Invariant Engine<br/>Shares: Qty × K | Cost: Basis ÷ K"]
+        ADJUSTER --> DEMERGER["🏢 Demerger Neutrality Resolver<br/>(K=1.0 factor, prevents phantom P&L drop)"]
+    end
+
+    %% 5. Ledger & Governance Auditing
+    subgraph LEDGER_LAYER ["🏦 5. Relational Ledger & Governance Audit"]
+        TAXES & DEMERGER --> ACID[("💾 SQLite Double-Entry Ledger<br/>(WAL Mode, Foreign Key Invariants)")]
+        
+        ACID --> YIELD["📈 Cash Drag & Risk-Free Yield Accrual<br/>(6.0% p.a. compounded daily across 250 sessions)"]
+        YIELD --> MTM["📊 Mark-to-Market Valuation<br/>(Dual gross vs. net production equity tracking)"]
+        
+        MTM --> GOV{"🛡️ Systematic Governance Monitor"}
+        GOV -->|Peak-to-Trough DD >= 30%| KILL["🛑 Portfolio Circuit Breaker<br/>(Emergency lock, freeze all operations)"]
+        GOV -->|Normal Operation| REPORT["📑 Daily Audit & Delivery<br/>• CLI Status (trader_cli.py)<br/>• Audit Statements (reports/*.csv)"]
+    end
+
+    %% Flow Styling
+    style INTAKE fill:#f8fafc,stroke:#3b82f6,stroke-width:2px;
+    style REGIME fill:#f8fafc,stroke:#8b5cf6,stroke-width:2px;
+    style MICRO fill:#f8fafc,stroke:#f59e0b,stroke-width:2px;
+    style CA_ENGINE fill:#f8fafc,stroke:#10b981,stroke-width:2px;
+    style LEDGER_LAYER fill:#f8fafc,stroke:#06b6d4,stroke-width:2px;
 ```
 
 ---
 
-## Key Financial & Technical Capabilities
+## 📂 Repository Structure & Separation of Concerns
+
+```text
+📦 nse-portfolio-data-engine
+ ├── 📜 config.py                       # Global Engine Configuration & Parameter Settings
+ │                                      # • Initial capital, position sizing limits, cash yield rate (6.0% p.a.)
+ │                                      # • Slippage penalties, fee rates, and market breadth thresholds (45%)
+ │
+ ├── 📜 data_feed.py                    # Autonomous Market Data Pipeline & Bhavcopy Ingestor
+ │                                      # • Automated HTTP session download of official NSE Bhavcopy archives
+ │                                      # • Column normalization, data type casting, and ISIN verification
+ │                                      # • ₹1.00 Crore daily traded turnover liquidity screening
+ │
+ ├── 📜 canonical_momentum_core.py      # Quantitative Factor Calculations & Macro Regime Gates
+ │                                      # • 200-day Simple Moving Average (SMA) universe breadth calculations
+ │                                      # • Binary risk-on / risk-off gate: switches to 100% cash when breadth < 45%
+ │                                      # • Cross-sectional momentum ranking and eligible asset selection
+ │
+ ├── 📜 execution_router.py             # Indian Market Microstructure & Statutory Friction Simulator
+ │                                      # • Upper Circuit detection: skips frozen assets and routes to next candidate
+ │                                      # • Lower Circuit detection: marks exits as PENDING_EXIT for next-day queue
+ │                                      # • Precise statutory deduction math: STT (0.10%), GST (18%), SEBI, DP fees
+ │
+ ├── 📜 corporate_action_watcher.py     # Deterministic Corporate Action Normalization Engine
+ │                                      # • Reference action matching and heuristic price-ratio split/bonus detection
+ │                                      # • Cost basis invariant preservation (zero artificial capital distortion)
+ │                                      # • Demerger factor neutrality (e.g., Strides Pharma / OneSource)
+ │
+ ├── 📜 ledger.py                       # Double-Entry Relational Accounting & Portfolio Store
+ │                                      # • SQLite relational database in WAL mode with strict foreign keys
+ │                                      # • Daily risk-free interest accrual (6.0% p.a.) on unallocated cash
+ │                                      # • Real-time Mark-to-Market (MTM) calculation of gross and net equity
+ │
+ ├── 📜 governance_monitor.py           # Institutional Risk Controls & Operational Health Audits
+ │                                      # • Peak-to-trough drawdown circuit breaker (hard 30% emergency halt)
+ │                                      # • Cash balance non-negativity and duplicate execution invariant audits
+ │                                      # • Structured diagnostic health logging and incident flagging
+ │
+ ├── 📜 trading_calendar.py             # Indian Capital Market Calendar & Trading Session Engine
+ │                                      # • Official NSE trading holiday calendar parsing and weekend exclusions
+ │                                      # • Trading session validation and next-available business day lookup
+ │
+ ├── 📜 trader_cli.py                   # Unified Command-Line Interface (`python trader_cli.py`)
+ │                                      # • Commands: `status`, `run`, `reconcile`, `report`
+ │                                      # • Formatted console tabular reporting for portfolio state and health
+ │
+ ├── 📄 reference_corporate_actions.csv # Seed Master for Verified Corporate Action Events
+ │                                      # • Historical splits, bonuses, and demergers with exact adjustment factors
+ │
+ ├── 📄 reference_nse_holidays.csv      # National Stock Exchange Official Trading Holiday Schedule
+ │                                      # • Session exclusions for Diwali, Republic Day, Independence Day, etc.
+ │
+ ├── 📂 reports/                        # Standardized Portfolio Statements & Audit Trail Exports
+ │    ├── sample_portfolio_summary.csv  # Equity snapshots, cash balances, deployed capital, and daily MTM
+ │    ├── sample_trade_history.csv      # Detailed transaction logs with breakdown of STT, GST, and slippage
+ │    └── sample_corporate_actions.csv  # Applied split, bonus, and demerger adjustments with timestamps
+ │
+ ├── 📂 tests/                          # Automated Unit Test Suite (100% Passing)
+ │    ├── test_ledger_accounting.py     # Verifies double-entry balance, cash yield accrual, and order costs
+ │    ├── test_corporate_actions.py     # Verifies split 2:1/5:1/10:1 math, cost-basis invariants, and demergers
+ │    └── test_market_microstructure.py # Verifies upper/lower circuit handling and statutory friction formulas
+ │
+ ├── requirements.txt                   # Production Python Dependencies (Pandas, Polars, Requests, etc.)
+ ├── LICENSE                            # MIT Open Source License
+ └── README.md                          # Executive System Documentation & Architecture Guide
+```
+
+---
+
+## 💡 Key Financial & Technical Capabilities
 
 ### 1. Automated Capital Market Data Intake
 * **Official Exchange Feed Parsing**: Downloads daily Bhavcopy archives directly from the National Stock Exchange of India (`sec_bhavdata_full_*.csv`).
@@ -68,33 +177,7 @@ flowchart TD
 
 ---
 
-## Project Structure
-
-```text
-├── data_feed.py                    # Daily Bhavcopy downloader & ingestion pipeline
-├── ledger.py                       # SQLite relational double-entry ledger & MTM engine
-├── execution_router.py             # Market microstructure & statutory fee accounting
-├── corporate_action_watcher.py     # Split, bonus, and demerger adjustment watcher
-├── governance_monitor.py           # Drawdown circuit breaker & portfolio health audits
-├── canonical_momentum_core.py      # Factor calculation & 200 SMA market breadth gate
-├── trading_calendar.py             # Indian market exchange holidays & calendar logic
-├── trader_cli.py                   # Command-line interface for status and execution
-├── config.py                       # Configuration parameters and environment settings
-├── reference_corporate_actions.csv # Seed corporate action reference records
-├── reference_nse_holidays.csv      # National Stock Exchange official holiday schedule
-├── reports/                        # Audit logs, trade histories, and portfolio statements
-│   ├── sample_portfolio_summary.csv
-│   ├── sample_trade_history.csv
-│   └── sample_corporate_actions.csv
-└── tests/                          # Automated unit test suite
-    ├── test_corporate_actions.py
-    ├── test_ledger_accounting.py
-    └── test_market_microstructure.py
-```
-
----
-
-## Quick Start & Usage
+## 🚀 Quick Start & Usage
 
 ### 1. Installation
 Clone the repository and install dependencies:
@@ -124,10 +207,11 @@ python -m unittest discover tests
 
 ---
 
-## Author & Contact
+## 👨‍💻 Author & Contact
 
 **P Ragul**  
-* Master of Commerce (M.Com - Accounting & Finance), SRM University  
-* Bachelor of Commerce (B.Com - Bank Management), Ramakrishna Mission Vivekananda College  
-* Location: Chennai, Tamil Nadu, India  
-* LinkedIn: [linkedin.com/in/ragul-accfin](https://www.linkedin.com/in/ragul-accfin)
+* **Education**: Master of Commerce (M.Com - Accounting & Finance), SRM University  
+* **Undergraduate**: Bachelor of Commerce (B.Com - Bank Management), Ramakrishna Mission Vivekananda College  
+* **Location**: Chennai, Tamil Nadu, India  
+* **LinkedIn**: [linkedin.com/in/ragul-accfin](https://www.linkedin.com/in/ragul-accfin)
+* **GitHub**: [github.com/Hastagtamilnadu](https://github.com/Hastagtamilnadu)
