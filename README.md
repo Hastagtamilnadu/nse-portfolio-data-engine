@@ -12,6 +12,12 @@ The project models how equity portfolios behave under real-world Indian market a
 
 ---
 
+## Live CLI Portfolio & Ledger Status Audit (`python trader_cli.py status`)
+
+![Autonomous Momentum Paper Trader Status Audit](assets/status_audit.png)
+
+---
+
 ## Project Scope & Development Methodology
 
 This project was built from an **Accounting & Financial Data Analysis** perspective, combining Indian capital market accounting rules with AI-assisted Python automation:
@@ -167,6 +173,9 @@ nse-portfolio-data-engine/
 |
 +-- reference_corporate_actions.csv     Seed Master for Verified Corporate Action Events
 +-- reference_nse_holidays.csv          NSE Official Trading Holiday Schedule
+|
++-- assets/                             Console Output Screenshots
+|   +-- status_audit.png                Live CLI portfolio & governance audit output
 |
 +-- reports/                            Sample Portfolio Statements & Audit Exports
 |   +-- sample_portfolio_summary.csv    Equity snapshots, cash balances, deployed capital, daily MTM
