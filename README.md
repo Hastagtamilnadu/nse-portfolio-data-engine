@@ -14,79 +14,95 @@ An institutional-grade, automated financial data pipeline, market microstructure
 
 ```mermaid
 flowchart LR
-    subgraph INTAKE ["Stage 1 — Market Data Intake"]
-        direction TB
-        NSE["Official NSE Bhavcopy Feed\n(sec_bhavdata_full_*.csv)"]
-        CAL["Exchange Calendar Validator\n(Trading holidays & weekend filters)"]
-        SCRUB["Data Scrubbing & Schema Normalization\n(ISIN resolution, series filtering, type casting)"]
-        LIQ["Liquidity Filter\nDaily Traded Value >= Rs. 1.00 Crore"]
-        CACHE[("Partitioned Bhavcopy Cache\n(SHA-256 Verified Disk Store)")]
+    NSE["Official NSE Bhavcopy Feed\nsec_bhavdata_full_*.csv"]
+    CAL["Exchange Calendar Validator\nTrading holidays & weekend filters"]
+    SCRUB["Data Scrubbing & Normalization\nISIN resolution, series filtering, type casting"]
+    LIQ["Liquidity Filter\nDaily Traded Value >= Rs. 1.00 Crore"]
+    CACHE[("Partitioned Bhavcopy Cache\nSHA-256 Verified Disk Store")]
 
-        NSE & CAL --> SCRUB --> LIQ --> CACHE
+    FACTOR["Factor Calculation Engine\nMomentum scoring, volatility, volume"]
+    BREADTH["200-Day SMA Breadth Monitor\n% of liquid NSE universe above 200 SMA"]
+    GATE{"Market Breadth Gate\nBreadth >= 45%?"}
+    DEFENSE["100% Cash Defense\nZero new buys, existing exposure wound down"]
+    UNIVERSE["Ranked Eligible Universe\nTop-ranked candidates for allocation"]
+
+    SIZING["Equal-Weight Capital Allocator\nPosition sizing and cash limits"]
+    CIRCUIT{"Exchange Circuit Check"}
+    SKIP["Rejection & Reroute\nSkip locked asset, select next rank"]
+    DEFER["Order Deferral\nFlag as PENDING_EXIT for next session"]
+    TAXES["Statutory Friction Engine\nSTT 0.10% + GST 18% + SEBI + DP Rs.15.93 + 20bps slippage"]
+
+    REF_CA["Reference Action Master\nVerified splits, bonuses, demergers"]
+    HEUR_CA["Heuristic Anomaly Detector\nPrice ratio matching: 2:1, 3:1, 5:1, 10:1"]
+    ADJUSTER["Position & Cost Basis Adjuster\nShares x K | Cost Basis / K"]
+
+    ACID[("SQLite Double-Entry Ledger\nWAL Mode, Strict Foreign Key Invariants")]
+    YIELD["Cash Yield Accrual\n6.0% p.a. compounded daily, 250 sessions"]
+    MTM["Mark-to-Market Valuation\nGross equity vs. net production equity"]
+    GOV{"Governance Monitor"}
+    KILL["Portfolio Circuit Breaker\nEmergency lock, peak-to-trough DD >= 30%"]
+    REPORT["Daily Audit Reports\ntrader_cli.py status | reports/*.csv"]
+
+    NSE & CAL --> SCRUB --> LIQ --> CACHE
+    CACHE --> FACTOR
+    CACHE --> BREADTH
+    FACTOR & BREADTH --> GATE
+    GATE -->|"Breadth < 45%"| DEFENSE
+    GATE -->|"Breadth >= 45%"| UNIVERSE
+    UNIVERSE --> SIZING --> CIRCUIT
+    CIRCUIT -->|"Upper Circuit"| SKIP
+    CIRCUIT -->|"Lower Circuit"| DEFER
+    CIRCUIT -->|"Normal"| TAXES
+    REF_CA & HEUR_CA --> ADJUSTER
+    TAXES & ADJUSTER --> ACID
+    ACID --> YIELD --> MTM --> GOV
+    GOV -->|"DD >= 30%"| KILL
+    GOV -->|"Normal"| REPORT
+
+    subgraph INTAKE ["Stage 1 — Market Data Intake"]
+        NSE
+        CAL
+        SCRUB
+        LIQ
+        CACHE
     end
 
     subgraph REGIME ["Stage 2 — Factor & Macro Regime Modeling"]
-        direction TB
-        FACTOR["Factor Calculation Engine\n(Momentum scoring, volatility, volume)"]
-        BREADTH["200-Day SMA Breadth Monitor\n(% of liquid NSE universe above 200 SMA)"]
-        GATE{"Market Breadth Gate\nBreadth >= 45%?"}
-        DEFENSE["100% Cash Defense\n(Zero new buys, existing exposure wound down)"]
-        UNIVERSE["Ranked Eligible Universe\n(Top-ranked candidates for allocation)"]
-
-        FACTOR & BREADTH --> GATE
-        GATE -->|Breadth < 45%| DEFENSE
-        GATE -->|Breadth >= 45%| UNIVERSE
+        FACTOR
+        BREADTH
+        GATE
+        DEFENSE
+        UNIVERSE
     end
 
     subgraph MICRO ["Stage 3 — Microstructure & Friction Routing"]
-        direction TB
-        SIZING["Equal-Weight Capital Allocator\n(Position sizing and cash limits)"]
-        CIRCUIT{"Exchange Circuit Check"}
-        SKIP["Rejection & Reroute\n(Skip locked asset, select next rank)"]
-        DEFER["Order Deferral\n(Flag as PENDING_EXIT for next session)"]
-        TAXES["Statutory Friction Engine\nSTT 0.10% + GST 18% + SEBI + DP Rs.15.93 + 20bps slippage"]
-
-        SIZING --> CIRCUIT
-        CIRCUIT -->|Upper Circuit| SKIP
-        CIRCUIT -->|Lower Circuit| DEFER
-        CIRCUIT -->|Normal| TAXES
+        SIZING
+        CIRCUIT
+        SKIP
+        DEFER
+        TAXES
     end
 
     subgraph CA_ENGINE ["Stage 4 — Corporate Action Engine"]
-        direction TB
-        REF_CA["Reference Action Master\n(Verified splits, bonuses, demergers)"]
-        HEUR_CA["Heuristic Anomaly Detector\n(Price ratio matching: 2:1, 3:1, 5:1, 10:1)"]
-        ADJUSTER["Position & Cost Basis Adjuster\nShares x K | Cost Basis / K"]
-        DEMERGER["Demerger Neutrality Resolver\n(K=1.0, prevents phantom P&L drop)"]
-
-        REF_CA & HEUR_CA --> ADJUSTER --> DEMERGER
+        REF_CA
+        HEUR_CA
+        ADJUSTER
     end
 
     subgraph LEDGER_LAYER ["Stage 5 — Ledger & Governance Audit"]
-        direction TB
-        ACID[("SQLite Double-Entry Ledger\n(WAL Mode, Strict Foreign Key Invariants)")]
-        YIELD["Cash Yield Accrual\n(6.0% p.a. compounded daily, 250 sessions)"]
-        MTM["Mark-to-Market Valuation\n(Gross equity vs. net production equity)"]
-        GOV{"Governance Monitor"}
-        KILL["Portfolio Circuit Breaker\n(Emergency lock, >= 30% drawdown)"]
-        REPORT["Daily Audit Reports\n(trader_cli.py status | reports/*.csv)"]
-
-        ACID --> YIELD --> MTM --> GOV
-        GOV -->|DD >= 30%| KILL
-        GOV -->|Normal| REPORT
+        ACID
+        YIELD
+        MTM
+        GOV
+        KILL
+        REPORT
     end
 
-    CACHE --> FACTOR
-    CACHE --> BREADTH
-    UNIVERSE --> SIZING
-    TAXES --> ACID
-    DEMERGER --> ACID
-
-    style INTAKE        fill:#f0f4ff,stroke:#3b82f6,stroke-width:2px
-    style REGIME        fill:#f5f0ff,stroke:#8b5cf6,stroke-width:2px
-    style MICRO         fill:#fffbf0,stroke:#f59e0b,stroke-width:2px
-    style CA_ENGINE     fill:#f0fff4,stroke:#10b981,stroke-width:2px
-    style LEDGER_LAYER  fill:#f0fbff,stroke:#06b6d4,stroke-width:2px
+    style INTAKE       fill:none,stroke:#3b82f6,stroke-width:2px
+    style REGIME       fill:none,stroke:#8b5cf6,stroke-width:2px
+    style MICRO        fill:none,stroke:#f59e0b,stroke-width:2px
+    style CA_ENGINE    fill:none,stroke:#10b981,stroke-width:2px
+    style LEDGER_LAYER fill:none,stroke:#06b6d4,stroke-width:2px
 ```
 
 ---
@@ -172,7 +188,6 @@ nse-portfolio-data-engine/
 - **Mark-to-Market Tracking**: Dual tracking of gross equity and net production equity with daily closing snapshots.
 
 ### 3. Indian Market Microstructure & Statutory Friction
-Automatically models Indian capital market transaction costs:
 
 | Cost Component | Rate |
 |---------------|------|
@@ -227,6 +242,4 @@ python -m unittest discover tests
 **P Ragul**
 - Master of Commerce (M.Com — Accounting & Finance), SRM University
 - Bachelor of Commerce (B.Com — Bank Management), Ramakrishna Mission Vivekananda College
-- Chennai, Tamil Nadu, India
 - LinkedIn: [linkedin.com/in/ragul-accfin](https://www.linkedin.com/in/ragul-accfin)
-- GitHub: [github.com/Hastagtamilnadu](https://github.com/Hastagtamilnadu)
